@@ -8,6 +8,9 @@
 
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
+  <Import Project="$(RepoRoot)eng\TrimmableProjects.props" />
+  <Import Project="$(RepoRoot)eng\ProjectReferences.props" />
+
   <!--
     Forward targets to @(RequiresDelayedBuild) projects after App.Ref has built. Intended for projects that
     cannot restore without our App.Ref layout and aren't referenced elsewhere in the repo. For projects
@@ -24,6 +27,16 @@
     <IsProjectReferenceProvider>false</IsProjectReferenceProvider>
   </PropertyGroup>
 
+  <!--
+    Ensure all trimmable projects build before this project (and its delayed builds like LinkabilityChecker).
+    LinkabilityChecker uses <Reference> not <ProjectReference> for trimmable assemblies, so the solution
+    scheduler has no visibility into the dependency. These ordering-only ProjectReferences fix that.
+  -->
+  <ItemGroup>
+    <_TrimmableRef Include="@(TrimmableProject)" />
+    <_TrimmableRef Update="@(ProjectReferenceProvider)" ProjectPath="%(ProjectReferenceProvider.ProjectPath)" />
+  </ItemGroup>
+
   <ItemGroup>
     <!--
       When adding new projects to @(RequiresDelayedBuild), temporarily reference the projects here, run
@@ -33,6 +46,12 @@
 
     <!-- Enforce build order. Need shared Fx before building the important projects. -->
     <ProjectReference Include="$(RepoRoot)\src\Framework\App.Ref\src\Microsoft.AspNetCore.App.Ref.sfxproj"
+      Private="false"
+      ReferenceOutputAssembly="false"
+      SkipGetTargetFrameworkProperties="true" />
+
+    <!-- Ordering-only references to trimmable projects so they are built before LinkabilityChecker runs. -->
+    <ProjectReference Include="@(_TrimmableRef->'%(ProjectPath)')"
       Private="false"
       ReferenceOutputAssembly="false"
       SkipGetTargetFrameworkProperties="true" />
